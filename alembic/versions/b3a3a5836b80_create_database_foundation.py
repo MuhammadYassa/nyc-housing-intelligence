@@ -27,8 +27,9 @@ def upgrade() -> None:
     # schema should cause the migration to fail instead of hiding database drift.
     op.execute("CREATE SCHEMA etl")
     op.execute("CREATE SCHEMA staging")
-    op.execute("CREATE SCHEMA core")
-    op.execute("CREATE SCHEMA analytics")
+    op.execute("CREATE SCHEMA bronze")
+    op.execute("CREATE SCHEMA silver")
+    op.execute("CREATE SCHEMA gold")
 
     op.create_table(
         "import_runs",
@@ -187,8 +188,9 @@ def downgrade() -> None:
         schema="etl",
     )
 
-    op.execute("DROP SCHEMA analytics")
-    op.execute("DROP SCHEMA core")
+    op.execute("DROP SCHEMA gold")
+    op.execute("DROP SCHEMA silver")
+    op.execute("DROP SCHEMA bronze")
     op.execute("DROP SCHEMA staging")
     op.execute("DROP SCHEMA etl")
 

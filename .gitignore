@@ -5,7 +5,12 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .env
-data/raw/
-data/working/
-data/rejected/
+# Source datasets and pipeline working data
+data/bronze/*
+data/working/*
+data/rejected/*
+
+# Preserve an explanation of the directory structure
+!data/README.md
+
 *.egg-info/

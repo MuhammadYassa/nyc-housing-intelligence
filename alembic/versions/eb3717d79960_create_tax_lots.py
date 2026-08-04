@@ -259,7 +259,7 @@ def upgrade() -> None:
             "longitude IS NULL OR longitude BETWEEN -180 AND 180",
             name="ck_tax_lots_longitude_range",
         ),
-        schema = "core"
+        schema = "silver"
     )
 
     op.create_index(
@@ -268,7 +268,7 @@ def upgrade() -> None:
         ["geom"],
         unique = False,
         postgresql_using = "GIST",
-        schema = "core"
+        schema = "silver"
     )
 
     op.create_index(
@@ -276,7 +276,7 @@ def upgrade() -> None:
         "tax_lots",
         ["source_import_run_id"],
         unique = False,
-        schema = "core"
+        schema = "silver"
     )
     pass
 
@@ -285,17 +285,17 @@ def downgrade() -> None:
     op.drop_index(
         "ix_tax_lots_source_import_run_id",
         table_name="tax_lots",
-        schema="core",
+        schema="silver",
     )
 
     op.drop_index(
         "ix_tax_lots_geom",
         table_name="tax_lots",
-        schema="core",
+        schema="silver",
     )
 
     op.drop_table(
         "tax_lots",
-        schema="core",
+        schema="silver",
     )
     pass

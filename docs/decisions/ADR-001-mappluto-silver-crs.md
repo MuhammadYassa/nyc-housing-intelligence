@@ -9,7 +9,7 @@ MapPLUTO geometry is supplied in NAD83 / New York Long Island
 distance queries, tax-lot polygons, and later browser-map output.
 
 ## Decision
-Store core.tax_lots.geom as geometry(MultiPolygon, 2263).
+Store silver.tax_lots.geom as geometry(MultiPolygon, 2263).
 
 ## Consequences
 - Local measurements use US survey feet.

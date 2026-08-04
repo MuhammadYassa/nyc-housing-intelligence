@@ -1,4 +1,4 @@
-| Source field | Core field            | Purpose                                 |
+| Source field | Silver field            | Purpose                                 |
 | ------------ | --------------------- | --------------------------------------- |
 | `BBL`        | `bbl`                 | Primary tax-lot identifier              |
 | `BoroCode`   | `borough_code`        | Numeric borough identifier              |
