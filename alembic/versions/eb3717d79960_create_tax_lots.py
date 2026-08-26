@@ -248,7 +248,7 @@ def upgrade() -> None:
             name = "ck_tax_lots_pluto_version_not_blank"
         ),
         sa.CheckConstraint(
-            "year_built IS NULL OR year_built BETWEEN 1600 AND 2100",
+            "year_built IS NULL OR year_built BETWEEN 1624 AND 2100",
             name="ck_tax_lots_year_built_range",
         ),
         sa.CheckConstraint(
