@@ -1,8 +1,12 @@
+"""Shared pipeline settings loaded from environment variables and the local .env."""
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Database connection settings and GDAL command locations for the pipeline."""
+
     ogrinfo_executable: str = "ogrinfo"
     ogr2ogr_executable: str = "ogr2ogr"
 
@@ -23,4 +27,5 @@ class Settings(BaseSettings):
     )
 
 
+# Load once on import so missing required settings fail before pipeline work starts.
 settings = Settings()  # type: ignore
