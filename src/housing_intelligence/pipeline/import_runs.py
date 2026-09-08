@@ -1,3 +1,8 @@
+"""Track source lineage and pipeline progress in etl.import_runs.
+
+The caller owns the connection and decides when to commit or roll back.
+"""
+
 import psycopg
 from pathlib import Path
 from ..models.status import ImportRunStatus
@@ -11,6 +16,9 @@ def create_import_run(
     raw_file_path: Path,
     checksum_sha256: str,
 ) -> int:
+    """Start an import and return its ID for progress updates and silver rows."""
+    # Keep the file path and checksum alongside the source and pipeline versions
+    # so loaded records can be traced back to the input used by this run.
     row = conn.execute(
         """
         INSERT INTO etl.import_runs (
@@ -53,6 +61,9 @@ def update_import_status(
     run_id: int,
     status: ImportRunStatus,
 ) -> None:
+    """Record an intermediate stage reached by an existing import."""
+    # Completion and failure use separate helpers to also record the outcome
+    # and finish time. This check does not enforce the order of stages.
     if status not in {
         ImportRunStatus.EXTRACTED,
         ImportRunStatus.STAGED,
@@ -68,6 +79,7 @@ def update_import_status(
         (status.value, run_id),
     )
 
+    # A missing run should surface as an error rather than lose progress silently.
     if result.rowcount != 1:
         raise RuntimeError(f"Import run {run_id} was not found.")
 
@@ -79,6 +91,7 @@ def complete_import_run(
     updated_count: int,
     rejected_count: int,
 ) -> None:
+    """Finish a successful import with row counts supplied by the pipeline."""
     result = conn.execute(
         """
         UPDATE etl.import_runs
@@ -107,6 +120,11 @@ def fail_import_run(
     run_id: int,
     error_message: str,
 ) -> None:
+    """Finish a failed import and preserve the error for later inspection.
+
+    If a database error aborted the transaction, the caller must roll it back
+    before using this connection to record the failure.
+    """
     result = conn.execute(
         """
         UPDATE etl.import_runs
