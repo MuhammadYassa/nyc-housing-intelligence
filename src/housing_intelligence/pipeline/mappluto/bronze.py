@@ -1,8 +1,7 @@
-from pathlib import Path
-from collections.abc import Iterator
-from zipfile import ZipFile
-import shutil
 import hashlib
+from collections.abc import Iterator
+from pathlib import Path
+from zipfile import ZipFile
 
 
 def read_in_chunks(path: Path, chunk_size: int) -> Iterator[bytes]:
@@ -45,19 +44,20 @@ def extract_mappluto(
     archive_path: Path,
     working_directory: Path,
 ) -> Path:
-    """Extract MapPLUTO into a fresh working directory and return its .gdb path.
-
-    The working directory must be disposable: any existing contents are deleted.
-    """
+    """Extract into a NEW directory; never delete or reuse an existing workspace."""
     if not archive_path.is_file():
         raise FileNotFoundError("Archive File Not Found!")
 
-    # Clear leftovers from earlier runs so releases cannot get mixed together.
-    if working_directory.is_dir():
-        shutil.rmtree(working_directory)
-    working_directory.mkdir(parents=True, exist_ok=True)
+    working_directory.mkdir(parents=True, exist_ok=False)
+    destination = working_directory.resolve()
 
     with ZipFile(archive_path, "r") as archive:
+        for entry in archive.infolist():
+            target = (destination / entry.filename).resolve()
+            if not target.is_relative_to(destination):
+                raise ValueError("Archive member escapes the run workspace")
+            if (entry.external_attr >> 16) & 0o170000 == 0o120000:
+                raise ValueError("Archive symlinks are not supported")
         archive.extractall(working_directory)
 
     # A file geodatabase is a directory and may be nested inside the archive.

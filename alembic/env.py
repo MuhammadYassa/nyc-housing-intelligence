@@ -1,13 +1,10 @@
 from logging.config import fileConfig
 
-import os
-from dotenv import load_dotenv
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 
 from alembic import context
-
-load_dotenv()  # Load environment variables from .env file
+from housing_intelligence.config import Settings
+from housing_intelligence.database import sqlalchemy_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -29,8 +26,6 @@ target_metadata = None
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-config.set_main_option('sqlalchemy.url', os.getenv('DATABASE_URL', 'postgresql://user:password@localhost/dbname')) # Set the database URL from environment variable
-
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -44,7 +39,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = sqlalchemy_url(Settings())
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -63,17 +58,19 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
+    # An injected connection is used only by isolated migration/bootstrap tests.
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=supplied_connection, target_metadata=target_metadata
         )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
 
+    connectable = create_engine(sqlalchemy_url(Settings()), poolclass=pool.NullPool)
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
 

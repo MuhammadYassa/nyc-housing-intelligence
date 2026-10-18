@@ -4,7 +4,7 @@ A web application that turns fragmented New York City housing data into clear, b
 
 NYC publishes extensive public records for housing-code violations, complaints, permits, property information, and related building history. Those records are useful, but they live across separate datasets with different schemas, identifiers, and address formats. This project combines that data into a single building profile that is easier to search, understand, and compare.
 
-## Features
+## Planned product features
 
 - Address-based building lookup
 - Unified building profiles across multiple NYC datasets
@@ -18,7 +18,7 @@ NYC publishes extensive public records for housing-code violations, complaints, 
 - Retrieval of relevant official NYC housing guidance
 - Source-aware results with visible data provenance
 
-## Architecture
+## Planned application architecture
 
 The application uses a **production-oriented modular monolith** backed by **PostgreSQL/PostGIS**. Periodic ingestion runs separately from request serving, and AI workloads are isolated so they do not interfere with normal building search and profile requests.
 
@@ -163,7 +163,7 @@ Historical state and source provenance are preserved where necessary so renter-f
 
 This project is under active development. The current architecture is designed for a single production-oriented application with periodic public-data ingestion, modest user traffic, and isolated AI workloads.
 
-The immediate focus is on reliable ingestion, building identity resolution, historical data modeling, building profiles, comparisons, and grounded AI-assisted analysis.
+The completed implementation milestone is local-archive MapPLUTO ingestion. Building identity, HPD ingestion, historical domain modeling, profiles, comparisons, and AI remain future work.
 
 ## Disclaimer
 

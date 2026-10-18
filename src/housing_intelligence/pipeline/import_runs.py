@@ -3,8 +3,12 @@
 The caller owns the connection and decides when to commit or roll back.
 """
 
-import psycopg
 from pathlib import Path
+
+import psycopg
+from psycopg import sql
+from psycopg.types.json import Jsonb
+
 from ..models.status import ImportRunStatus
 
 
@@ -14,7 +18,7 @@ def create_import_run(
     pipeline_version: str,
     source_version: str,
     raw_file_path: Path,
-    checksum_sha256: str,
+    checksum_sha256: str | None,
 ) -> int:
     """Start an import and return its ID for progress updates and silver rows."""
     # Keep the file path and checksum alongside the source and pipeline versions
@@ -74,7 +78,7 @@ def update_import_status(
         """
         UPDATE etl.import_runs
         SET status = %s
-        WHERE id = %s
+        WHERE id = %s AND status NOT IN ('COMPLETED', 'FAILED')
         """,
         (status.value, run_id),
     )
@@ -90,24 +94,27 @@ def complete_import_run(
     inserted_count: int,
     updated_count: int,
     rejected_count: int,
+    unchanged_count: int = 0,
 ) -> None:
     """Finish a successful import with row counts supplied by the pipeline."""
     result = conn.execute(
         """
         UPDATE etl.import_runs
         SET status = %s,
-        completed_at = CURRENT_TIMESTAMP,
+        completed_at = clock_timestamp(),
         inserted_count = %s,
         updated_count = %s,
         rejected_count = %s,
+        unchanged_count = %s,
         error_message = NULL
-        WHERE id = %s
+        WHERE id = %s AND status NOT IN ('COMPLETED', 'FAILED')
         """,
         (
             ImportRunStatus.COMPLETED.value,
             inserted_count,
             updated_count,
             rejected_count,
+            unchanged_count,
             run_id,
         ),
     )
@@ -129,11 +136,43 @@ def fail_import_run(
         """
         UPDATE etl.import_runs
         SET status = %s,
-        completed_at = CURRENT_TIMESTAMP,
-        error_message = %s
-        WHERE id = %s
+        completed_at = clock_timestamp(),
+        error_message = %s,
+        inserted_count = 0,
+        updated_count = 0,
+        unchanged_count = 0
+        WHERE id = %s AND status NOT IN ('COMPLETED', 'FAILED')
         """,
         (ImportRunStatus.FAILED.value, error_message, run_id),
     )
     if result.rowcount != 1:
         raise RuntimeError(f"Import run {run_id} was not found.")
+
+
+def record_import_progress(conn: psycopg.Connection, run_id: int, **values) -> None:
+    """Update only measured run metadata; callers still own transactions."""
+    allowed = {
+        "checksum_sha256",
+        "source_row_count",
+        "staged_row_count",
+        "valid_count",
+        "rejected_count",
+        "validation_summary",
+    }
+    if not values or not values.keys() <= allowed:
+        raise ValueError("Unsupported import metadata fields")
+    assignments = sql.SQL(", ").join(
+        sql.SQL("{} = %s").format(sql.Identifier(name)) for name in values
+    )
+    parameters = [
+        Jsonb(value) if name == "validation_summary" else value
+        for name, value in values.items()
+    ]
+    result = conn.execute(
+        sql.SQL(
+            "UPDATE etl.import_runs SET {} WHERE id = %s AND status NOT IN ('COMPLETED', 'FAILED')"
+        ).format(assignments),
+        [*parameters, run_id],
+    )
+    if result.rowcount != 1:
+        raise RuntimeError(f"Import run {run_id} does not exist or is already terminal")

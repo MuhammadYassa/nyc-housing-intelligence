@@ -1,27 +1,43 @@
 """Inspect the MapPLUTO geodatabase and load its source layer into staging."""
 
-from pathlib import Path
-import subprocess
 import json
 import os
-from ...config import settings
+import subprocess
+from pathlib import Path
 
-OGRINFO_EXECUTABLE = settings.ogrinfo_executable
-OGR2OGR_EXECUTABLE = settings.ogr2ogr_executable
-# This layer name belongs to the 26v1 release used by the pipeline.
-MAPPLUTO_LAYER = "MapPLUTO_26v1_clipped"
+from ...config import Settings
+from ...database import gdal_connection
+from .source import SourceContract
+
+
+def gdal_environment(settings: Settings) -> dict[str, str]:
+    env = os.environ.copy()
+    if settings.gdal_proj_data:
+        # QGIS and a separate PostgreSQL install can ship incompatible PROJ DBs.
+        env["PROJ_DATA"] = settings.gdal_proj_data
+        env["PROJ_LIB"] = settings.gdal_proj_data
+    return env
 
 
 def _run_command(
     arguments: list[str],
     env: dict[str, str] | None = None,
+    *,
+    timeout: int,
 ) -> str:
     """Return command output, raising an error with GDAL's diagnostics on failure."""
     try:
         result = subprocess.run(
-            arguments, capture_output=True, text=True, check=True, env=env
+            arguments,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+            timeout=timeout,
         )
         return result.stdout
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"GDAL command exceeded {timeout} seconds") from e
     except subprocess.CalledProcessError as e:
         raise RuntimeError(
             f"Command {e.cmd} failed with exit code {e.returncode}.\n"
@@ -29,10 +45,14 @@ def _run_command(
         ) from e
 
 
-def inspect_mappluto(gdb_path: Path) -> dict:
+def inspect_mappluto(
+    gdb_path: Path, contract: SourceContract, settings: Settings
+) -> dict:
     """Read layer information as JSON without modifying the source geodatabase."""
     ogrinfo_output = _run_command(
-        [OGRINFO_EXECUTABLE, "-json", "-ro", str(gdb_path), MAPPLUTO_LAYER]
+        [settings.ogrinfo_executable, "-json", "-ro", str(gdb_path), contract.layer],
+        env=gdal_environment(settings),
+        timeout=settings.gdal_inspect_timeout_seconds,
     )
     ogrinfo = json.loads(ogrinfo_output)
     return ogrinfo
@@ -40,30 +60,26 @@ def inspect_mappluto(gdb_path: Path) -> dict:
 
 def load_to_staging(
     gdb_path: Path,
-    layer_name: str,
+    contract: SourceContract,
+    settings: Settings,
 ) -> None:
     """Replace staging.mappluto_source with the selected geodatabase layer."""
-    gdal_pg_connection_string = (
-        f"PG:host={settings.database_host} "
-        f"port={settings.database_port} "
-        f"dbname={settings.database_name} "
-        f"user={settings.database_user}"
-    )
+    gdal_pg_connection_string = gdal_connection(settings)
 
     # Inherit the local GDAL environment and add the password for this subprocess.
-    env = os.environ.copy()
+    env = gdal_environment(settings)
 
     # Keep the password out of command arguments, which can appear in errors.
     env["PGPASSWORD"] = settings.database_password.get_secret_value()
 
     _run_command(
         [
-            OGR2OGR_EXECUTABLE,
+            settings.ogr2ogr_executable,
             "-f",
             "PostgreSQL",
             gdal_pg_connection_string,
             str(gdb_path),
-            layer_name,
+            contract.layer,
             "-nln",
             "staging.mappluto_source",
             # Each load replaces staging so reruns do not append duplicate rows.
@@ -86,4 +102,5 @@ def load_to_staging(
             "-progress",
         ],
         env=env,
+        timeout=settings.gdal_load_timeout_seconds,
     )

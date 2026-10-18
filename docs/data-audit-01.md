@@ -28,7 +28,7 @@ HPD Violations sample
 - Related notice identifier: novid
 - Property identifiers: bbl, bin, buildingid
 - Registration identifier: registrationid
-- Classes observed: A, B, C, I
+- Classes observed in the current 48-record sample: A, B, C
 - Broad status field: violationstatus
 - Detailed status field: currentstatus
 - Relevant dates: inspectiondate, approveddate,
@@ -61,7 +61,7 @@ QGIS Audit:
 - BBL field type: Real
 - Version field name: Version
 - Version value: 26v1
-- Number-of-buildings field: NumbBldgs
+- Number-of-buildings field: NumBldgs
 - Residential-units field: UnitsRes
 - Multiple buildings per tax lot observed: Yes
 - Example BBL: 4163500400
